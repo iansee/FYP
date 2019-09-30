@@ -4,7 +4,7 @@ import numpy as np
 
 from syft.generic import ObjectStorage
 from syft.federated.train_config import TrainConfig
-
+from syft.federated.monitor import monitoring
 
 class FederatedClient(ObjectStorage):
     """A Client able to execute federated learning in local datasets."""
@@ -14,6 +14,8 @@ class FederatedClient(ObjectStorage):
         self.datasets = datasets if datasets is not None else dict()
         self.optimizer = None
         self.train_config = None
+        self.monitoring = None
+
 
     def add_dataset(self, dataset, key: str):
         if key not in self.datasets:
@@ -126,6 +128,16 @@ class FederatedClient(ObjectStorage):
                     break
 
         return loss
+    
+    def start_monitoring(self):
+        monitor_obj = monitoring()
+        monitor_obj.start()
+        self.monitoring = monitor_obj
+        
+    def stop_monitoring(self):
+        output = self.monitoring.stop()
+        for value in output:
+            print (value+":" + str(output[value]))
 
     def evaluate(
         self,
