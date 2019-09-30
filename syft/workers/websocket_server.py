@@ -14,7 +14,7 @@ import logging
 tblib.pickling_support.install()
 
 import syft as sy
-from syft.frameworks.torch.tensors.interpreters import AbstractTensor
+from syft.generic.tensor import AbstractTensor
 from syft.workers.virtual import VirtualWorker
 from syft.exceptions import GetNotPermittedError
 from syft.exceptions import ResponseSignatureError
@@ -85,9 +85,18 @@ class WebsocketServerWorker(VirtualWorker, FederatedClient):
 
         """
         while True:
-            msg = await websocket.recv()
-            await self.broadcast_queue.put(msg)
+            try:
+                #
+                msg = await websocket.recv()
+                await self.broadcast_queue.put(msg)
+            except (websockets.exceptions.ConnectionClosedOK):
+                print ("Connection was sucessfully closed, Server is still open")
+                break
+            except (websockets.exceptions.ConnectionClosedError):
+                print ("Connection was closed without reason, Server is still open")
+                break
 
+                
     async def _producer_handler(self, websocket: websockets.WebSocketCommonProtocol):
         """This handler listens to the queue and processes messages as they
         arrive.
@@ -128,6 +137,7 @@ class WebsocketServerWorker(VirtualWorker, FederatedClient):
             websocket: the websocket connection to the client
 
         """
+        print ("Connection open")
 
         asyncio.set_event_loop(self.loop)
         consumer_task = asyncio.ensure_future(self._consumer_handler(websocket))
@@ -154,7 +164,7 @@ class WebsocketServerWorker(VirtualWorker, FederatedClient):
                 max_size=None,
                 ping_timeout=None,
                 close_timeout=None,
-            )
+            ) 
         else:
             # Insecure
             start_server = websockets.serve(
@@ -164,12 +174,12 @@ class WebsocketServerWorker(VirtualWorker, FederatedClient):
                 max_size=None,
                 ping_timeout=None,
                 close_timeout=None,
-            )
-
+            ) 
         asyncio.get_event_loop().run_until_complete(start_server)
         print("Serving. Press CTRL-C to stop.")
         try:
-            asyncio.get_event_loop().run_forever()
+            self.loop = asyncio.get_event_loop()
+            self.loop.run_forever()
         except KeyboardInterrupt:
             logging.info("Websocket server stopped.")
 
