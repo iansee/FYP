@@ -136,8 +136,7 @@ class FederatedClient(ObjectStorage):
         
     def stop_monitoring(self):
         output = self.monitoring.stop()
-        for value in output:
-            print (value+":" + str(output[value]))
+        return output
 
     def evaluate(
         self,
