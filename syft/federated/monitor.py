@@ -1,4 +1,5 @@
 import psutil
+import time
 
 class monitoring():
     def __init__(self):
@@ -10,6 +11,7 @@ class monitoring():
         self.err_out = None
         self.drop_in = None
         self.drop_out = None
+        self.time_start = None
 
         interfaces = psutil.net_io_counters(pernic=True)
         for interface in interfaces:
@@ -27,7 +29,8 @@ class monitoring():
         self.err_in=network_obj.errin
         self.err_out=network_obj.errout
         self.drop_in=network_obj.dropin
-        self.drop_out=network_obj.dropout 
+        self.drop_out=network_obj.dropout
+        self.time_start = time.time()
                 
     def stop(self):
         interfaces = psutil.net_io_counters(pernic=True)
@@ -41,9 +44,10 @@ class monitoring():
         new_err_out =network_obj.errout - self.err_out
         new_drop_in =network_obj.dropin - self.drop_in
         new_drop_out = network_obj.dropout - self.drop_out
+        time_elapsed = time.time() - self.time_start
         
         return {"bytes sent" : new_bytes_sent, "bytes recieved" :new_bytes_recv,
                 "packets sent" : new_packets_sent , "packets recieved": new_packets_recv,
                 "Incoming errors" : new_err_in, "Outgoing errors" : new_err_out,
-                "Drop ins": new_drop_in, "Drop outs" : new_drop_out}
+                "Drop ins": new_drop_in, "Drop outs" : new_drop_out ,"time_elapsed" : time_elapsed}
                 
