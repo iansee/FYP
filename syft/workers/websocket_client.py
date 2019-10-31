@@ -1,6 +1,7 @@
 import binascii
 from typing import Union
 from typing import List
+import time
 
 import torch
 import websocket
@@ -8,6 +9,8 @@ import websockets
 import logging
 import ssl
 import time
+import asyncio
+
 
 import syft as sy
 from syft import messaging
@@ -59,7 +62,29 @@ class WebsocketClientWorker(BaseWorker):
             args["sslopt"] = {"cert_reqs": ssl.CERT_NONE}
 
         self.ws = websocket.create_connection(**args)
+        
+    async def perf_ping(self):
+        message=self.create_message_execute_command(command_name="start_monitoring",command_owner="self")
+        serialized_message = sy.serde.serialize(message)
+        self._recv_msg(serialized_message)
 
+        for x in range(1,1000):
+            self.ws.ping()
+            await asyncio.sleep(0.01)
+
+        
+        message = self.create_message_execute_command(command_name="stop_monitoring",command_owner="self")
+        serialized_message = sy.serde.serialize(message)
+        info = self._recv_msg(serialized_message)
+        
+        return info
+
+    def data_setamount(self):
+        message=self.create_message_execute_command(command_name="dataset",command_owner="self")
+        serialized_message = sy.serde.serialize(message)
+        info = self._recv_msg(serialized_message)
+        return info
+            
     def close(self):
         self.ws.close()
 
