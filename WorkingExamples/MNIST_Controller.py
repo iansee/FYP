@@ -7,7 +7,7 @@ from syft.workers import WebsocketClientWorker
 from syft.frameworks.torch.federated import utils
 from torchvision import datasets
 from torchvision import transforms
-
+import sys
 global batchsize
 global lr
 global no_epoch
@@ -110,6 +110,8 @@ async def fit_model_on_worker(
         optimizer="SGD",
         optimizer_args={"lr": lr},
     )
+
+
     #send monitoring command
     message = worker.create_message_execute_command(command_name="start_monitoring",command_owner="self")
     serialized_message = syft.serde.serialize(message)
@@ -121,32 +123,59 @@ async def fit_model_on_worker(
     loss = await worker.async_fit(dataset_key="targeted", return_ids=[0])
     print("Training round: {}, worker: {}, avg_loss: {}".format( curr_round, worker.id, loss.item()))
     #Call back to the model
-    model = train_config.model_ptr.get().obj
+    model = train_config.get_model().obj
     #Stop monitoring command
     message = worker.create_message_execute_command(command_name="stop_monitoring",command_owner="self")
     serialized_message = syft.serde.serialize(message)
     network_info = worker._recv_msg(serialized_message)
+
+
+    
     #Deserialize the response recieved
     network_info = syft.serde.deserialize(network_info)
     return worker.id, model, loss, network_info
 
-#Changes made to SYFT implementation of websocket_client to always keep fit alive
-async def sendmodel():
+async def get_performance(worker):
+    message = await worker.perf_ping()
+    network = syft.serde.deserialize(message)
+
+    message = worker.data_setamount()
+    data = syft.serde.deserialize(message)
+    
+    print (worker.id+" has network performance of ")
+    for x in network:
+        print (x + ':' + str(network[x]))
+    print (worker.id+" has dataset of {}".format(data))
+
+
+def connect_to_nodes(nodes):
     hook = syft.TorchHook(torch)
-    h2_websocket = {"host": "10.0.0.2", "hook": hook, "verbose": True}
-    h3_websocket = {"host": "10.0.0.3", "hook": hook, "verbose": True}
-    h4_websocket = {"host": "10.0.0.4", "hook": hook, "verbose": True}
+    workers = []
+    for i in range(2,int(nodes)+1):
+        ip = '10.0.0.{}'.format(str(i))
+        socket = {"host": ip, "hook":hook,"verbose":True}
 
-    h2 = WebsocketClientWorker(id = "h2",port = 8778,**h2_websocket)
-    h3 = WebsocketClientWorker(id = "h3",port = 8778,**h3_websocket)
-    h4 = WebsocketClientWorker(id = "h4",port = 8778,**h4_websocket)
+        worker_name = 'h{}'.format(str(i))
+        clientworker = WebsocketClientWorker(id=worker_name,port=8778,**socket)
+        workers.append(clientworker)
+    return workers
 
-    workers = [h2,h3,h4]
+    
+#Changes made to SYFT implementation of websocket_client to always keep fit alive
+async def sendmodel(nodes):
+    
+    workers = connect_to_nodes(nodes)
     (mock_data, target) = test_loader.__iter__().next()
     model = Net()
     global traced_model
 
     traced_model = torch.jit.trace(model,mock_data)
+    
+    print ('Performance measurments')
+    perf_measurement = await asyncio.gather(
+        *[get_performance(worker)
+          for worker in workers])
+    
     
     for current_round in range(federated_rounds):
         print ("Starting round" + str(current_round))
@@ -182,13 +211,13 @@ async def sendmodel():
         worker.close()
 
 
-def main():
+def main(nodes):
     #centralized_model = train(lr,no_epoch)
     #accuracy = test(centralized_model)
-    asyncio.get_event_loop().run_until_complete(sendmodel())
+    asyncio.get_event_loop().run_until_complete(sendmodel(nodes))
     
 
 
 
-main()
+main(sys.argv[1])
 
