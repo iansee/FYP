@@ -1,10 +1,11 @@
 import torch as th
 from torch.utils.data import BatchSampler, RandomSampler, SequentialSampler
 import numpy as np
-
+import syft
 from syft.generic import ObjectStorage
 from syft.federated.train_config import TrainConfig
 from syft.federated.monitor import monitoring
+
 
 class FederatedClient(ObjectStorage):
     """A Client able to execute federated learning in local datasets."""
@@ -15,7 +16,6 @@ class FederatedClient(ObjectStorage):
         self.optimizer = None
         self.train_config = None
         self.monitoring = None
-
 
     def add_dataset(self, dataset, key: str):
         if key not in self.datasets:
@@ -63,6 +63,21 @@ class FederatedClient(ObjectStorage):
         else:
             raise ValueError("Unknown optimizer: {}".format(optimizer_name))
         return self.optimizer
+    
+
+    def dataset(self):
+        print ('Dataset')
+        return len(self.datasets['targeted'].data)
+
+
+    def start_monitoring(self):
+        monitor_obj = monitoring()
+        monitor_obj.start()
+        self.monitoring = monitor_obj
+
+    def stop_monitoring(self):
+        output = self.monitoring.stop()
+        return output
 
     def fit(self, dataset_key: str, **kwargs):
         """Fits a model on the local dataset as specified in the local TrainConfig object.
@@ -128,15 +143,6 @@ class FederatedClient(ObjectStorage):
                     break
 
         return loss
-    
-    def start_monitoring(self):
-        monitor_obj = monitoring()
-        monitor_obj.start()
-        self.monitoring = monitor_obj
-        
-    def stop_monitoring(self):
-        output = self.monitoring.stop()
-        return output
 
     def evaluate(
         self,
