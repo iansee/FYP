@@ -3,11 +3,20 @@ import torch.nn as nn
 import torch.nn.functional as F
 import asyncio
 import syft
-from syft.workers import WebsocketClientWorker
+from syft.workers.websocket_client import WebsocketClientWorker
 from syft.frameworks.torch.federated import utils
 from torchvision import datasets
 from torchvision import transforms
+
+import h5py
+import collections
+import six
+import os.path
+from tensorflow_federated.python.simulation.hdf5_client_data import HDF5ClientData
+import numpy as np
+import tensorflow as tf
 import sys
+
 global batchsize
 global lr
 global no_epoch
@@ -17,24 +26,74 @@ batchsize=1000
 lr = 0.01
 no_epoch = 1
 federated_rounds = 10
+fractionToUse = 5
 
-train_loader = torch.utils.data.DataLoader(
-  datasets.MNIST('./files/', train=True, download=False,
-                             transform=transforms.Compose([
-                               transforms.ToTensor(),
-                               transforms.Normalize(
-                                 (0.1307,), (0.3081,))
-                             ])),
-  batch_size=batchsize, shuffle=True)
+class TestDataset:
+    def __init__(self,transform=None):
+        fileprefix = "fed_emnist_digitsonly"
+        dir_path = os.path.dirname("/home/mininet/")
+        test = HDF5ClientData(os.path.join(dir_path, fileprefix + '_test.h5'))
+        testFile = h5py.File(os.path.join(dir_path, fileprefix + '_test.h5'), "r")
+        _EXAMPLES_GROUP = "examples"
+        numberofclients = len(test.client_ids)
+        data = np.empty((0,28,28), np.float32)
+        target = np.empty((0), np.int_)
+        for i in range(int(numberofclients/fractionToUse)):
+            clientdataset = collections.OrderedDict((name, ds[()]) for name, ds in sorted(
+                six.iteritems(testFile[HDF5ClientData._EXAMPLES_GROUP][test.client_ids[i*fractionToUse]])))
+            # data = np.concatenate((data, np.reshape(clientdataset['pixels'], (-1, 1, 28, 28))))
+            data = np.concatenate((data, clientdataset['pixels']))
+            target = np.concatenate((target, clientdataset['label']), axis=0)
+        self.target = list(target)
+        self.data = list(data)
+        self.transform = transform
+    def __getitem__(self, index):
+        x=self.data[index]
+        y=self.target[index]
+        if self.transform:
+            x = self.transform(x)
+        return x,y
+    def __len__(self):
+        return len(self.target)
 
-test_loader = torch.utils.data.DataLoader(
-  datasets.MNIST('./files/', train=False, download=False,
-                             transform=transforms.Compose([
-                               transforms.ToTensor(),
-                               transforms.Normalize(
-                                 (0.1307,), (0.3081,))
-                             ])),
-  batch_size=batchsize, shuffle=True)
+class TrainDataset:
+    def __init__(self,transform=None):
+        fileprefix = "fed_emnist_digitsonly"
+        dir_path = os.path.dirname("/home/mininet/")
+        train = HDF5ClientData(os.path.join(dir_path, fileprefix + '_train.h5'))
+        trainFile = h5py.File(os.path.join(dir_path, fileprefix + '_train.h5'), "r")
+        _EXAMPLES_GROUP = "examples"
+        numberofclients = len(train.client_ids)
+        data = np.empty((0,28,28), np.float32)
+        target = np.empty((0), np.int_)
+        for i in range(int(numberofclients/fractionToUse)):
+            clientdataset = collections.OrderedDict((name, ds[()]) for name, ds in sorted(
+                six.iteritems(trainFile[HDF5ClientData._EXAMPLES_GROUP][train.client_ids[i*fractionToUse]])))
+            # data = np.concatenate((data, np.reshape(clientdataset['pixels'], (-1, 1, 28, 28))))
+            data = np.concatenate((data, clientdataset['pixels']))
+            target = np.concatenate((target, clientdataset['label']), axis=0)
+        self.target = list(target)
+        self.data = list(data)
+        self.transform = transform
+    def __getitem__(self, index):
+        x=self.data[index]
+        y=self.target[index]
+        if self.transform:
+            x = self.transform(x)
+        return x,y
+    def __len__(self):
+        return len(self.target)
+
+test_loader = torch.utils.data.DataLoader(TestDataset(transform=transforms.Compose([
+  transforms.ToTensor(),
+  transforms.Normalize(
+    (0.1307,), (0.3081,))
+])),batch_size=batchsize,shuffle=True)
+train_loader = torch.utils.data.DataLoader(TrainDataset(transform=transforms.Compose([
+  transforms.ToTensor(),
+  transforms.Normalize(
+    (0.1307,), (0.3081,))
+])),batch_size=batchsize,shuffle=True)
 
 
 #Model
@@ -71,7 +130,7 @@ def train(lr,epoch):
             print ("Batch" + str(batch_no))
             print ("Loss:" + str(loss.item()))
     return net
-            
+
 
 def test(model):
     model.eval()
@@ -130,7 +189,7 @@ async def fit_model_on_worker(
     network_info = worker._recv_msg(serialized_message)
 
 
-    
+
     #Deserialize the response recieved
     network_info = syft.serde.deserialize(network_info)
     return worker.id, model, loss, network_info
@@ -141,7 +200,7 @@ async def get_performance(worker):
 
     message = worker.data_setamount()
     data = syft.serde.deserialize(message)
-    
+
     print (worker.id+" has network performance of ")
     for x in network:
         print (x + ':' + str(network[x]))
@@ -160,23 +219,23 @@ def connect_to_nodes(nodes):
         workers.append(clientworker)
     return workers
 
-    
+
 #Changes made to SYFT implementation of websocket_client to always keep fit alive
 async def sendmodel(nodes):
-    
+
     workers = connect_to_nodes(nodes)
     (mock_data, target) = test_loader.__iter__().next()
     model = Net()
     global traced_model
 
     traced_model = torch.jit.trace(model,mock_data)
-    
+
     print ('Performance measurments')
     perf_measurement = await asyncio.gather(
         *[get_performance(worker)
           for worker in workers])
-    
-    
+
+
     for current_round in range(federated_rounds):
         print ("Starting round" + str(current_round))
         results = await asyncio.gather(
@@ -200,12 +259,12 @@ async def sendmodel(nodes):
                 for x in network:
                     print (x + ':' + str(network[x]))
 
-                
+
         avg_model = utils.federated_avg(models)
         traced_model = avg_model
         print ("Evaluating averaged model")
         test(traced_model)
-        
+
     print ("Finished Federated training - closing connections")
     for worker in workers:
         worker.close()
@@ -215,9 +274,8 @@ def main(nodes):
     #centralized_model = train(lr,no_epoch)
     #accuracy = test(centralized_model)
     asyncio.get_event_loop().run_until_complete(sendmodel(nodes))
-    
+
 
 
 
 main(sys.argv[1])
-
