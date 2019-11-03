@@ -47,6 +47,9 @@ class TestDataset:
         self.target = list(target)
         self.data = list(data)
         self.transform = transform
+        testFile.close()
+        del test
+
     def __getitem__(self, index):
         x=self.data[index]
         y=self.target[index]
@@ -75,6 +78,9 @@ class TrainDataset:
         self.target = list(target)
         self.data = list(data)
         self.transform = transform
+        trainFile.close()
+        del train
+
     def __getitem__(self, index):
         x=self.data[index]
         y=self.target[index]
@@ -139,7 +145,7 @@ def test(model):
     with torch.no_grad():
         for (data, target) in test_loader:
           output = model(data)
-          test_loss += F.nll_loss(output, target, size_average=False).item()
+          test_loss += F.nll_loss(output, target, reduction='sum').item()
           pred = output.data.max(1, keepdim=True)[1]
           correct += pred.eq(target.data.view_as(pred)).sum()
     test_loss /= len(test_loader.dataset)
@@ -209,19 +215,32 @@ async def get_performance(worker):
 
 def connect_to_nodes(nodes):
     hook = syft.TorchHook(torch)
-    workers = []
+    workers = {}
     for i in range(2,int(nodes)+1):
         ip = '10.0.0.{}'.format(str(i))
         socket = {"host": ip, "hook":hook,"verbose":True}
 
         worker_name = 'h{}'.format(str(i))
         clientworker = WebsocketClientWorker(id=worker_name,port=8778,**socket)
-        workers.append(clientworker)
+        workers[worker_name] = clientworker
     return workers
 
+def getWorkersToCall(costDict, groupSize):
+    print("Bytes sent by each worker so far:")
+    for x in costDict:
+        print (x + ':' + str(costDict[x]))
+    workersToCall = []
+    tempDict = dict(costDict)
+    for i in range(groupSize):
+        host = min(tempDict, key=tempDict.get)
+        workersToCall.append(host)
+        tempDict.pop(host)
+    print("Choosing workers: ")
+    print(*workersToCall)
+    return workersToCall
 
 #Changes made to SYFT implementation of websocket_client to always keep fit alive
-async def sendmodel(nodes):
+async def sendmodel(nodes, groupSize):
 
     workers = connect_to_nodes(nodes)
     (mock_data, target) = test_loader.__iter__().next()
@@ -233,11 +252,13 @@ async def sendmodel(nodes):
     print ('Performance measurments')
     perf_measurement = await asyncio.gather(
         *[get_performance(worker)
-          for worker in workers])
+          for worker in workers.values()])
 
+    costIncurred = {'h{}'.format(str(i)): 0 for (i) in range(2,int(nodes)+1)}
 
     for current_round in range(federated_rounds):
         print ("Starting round" + str(current_round))
+        workersToCall = getWorkersToCall(costIncurred, groupSize)
         results = await asyncio.gather(
             *[
                 fit_model_on_worker(worker = worker,
@@ -246,7 +267,7 @@ async def sendmodel(nodes):
                                          curr_round = current_round,
                                          lr = lr,
                                          no_federated_epochs = no_epoch)
-                for worker in workers]
+                for worker in [workers[w] for w in workersToCall]]
             )
         models = {}
         loss_vals = {}
@@ -256,8 +277,11 @@ async def sendmodel(nodes):
                 models[worker_id] = worker_model
                 print ("Evaluating WORKER {}".format(worker_id))
                 test(worker_model)
-                for x in network:
-                    print (x + ':' + str(network[x]))
+                print('Bytes sent: ' + str(network['bytes sent']))
+                costIncurred[worker_id] = costIncurred[worker_id] + network['bytes sent']
+                print('Total bytes sent: ' + str(costIncurred[worker_id]))
+                # for x in network:
+                #     print (x + ':' + str(network[x]))
 
 
         avg_model = utils.federated_avg(models)
@@ -266,16 +290,16 @@ async def sendmodel(nodes):
         test(traced_model)
 
     print ("Finished Federated training - closing connections")
-    for worker in workers:
+    for worker in workers.values():
         worker.close()
 
 
-def main(nodes):
+def main(nodes, groupSize):
     #centralized_model = train(lr,no_epoch)
     #accuracy = test(centralized_model)
-    asyncio.get_event_loop().run_until_complete(sendmodel(nodes))
+    asyncio.get_event_loop().run_until_complete(sendmodel(nodes, groupSize))
 
 
 
 
-main(sys.argv[1])
+main(sys.argv[1], int(sys.argv[2]))
