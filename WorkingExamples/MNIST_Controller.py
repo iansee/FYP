@@ -195,12 +195,10 @@ async def fit_model_on_worker(
     return worker.id, model, loss, network_info
 
 async def get_performance(worker):
-    message = await worker.perf_ping()
-    network = syft.serde.deserialize(message)
+    network = await worker.perf_ping()
 
-    message = worker.data_setamount()
-    data = syft.serde.deserialize(message)
-
+    data = worker.data_setamount()
+    
     print (worker.id+" has network performance of ")
     for x in network:
         print (x + ':' + str(network[x]))
@@ -235,7 +233,7 @@ async def sendmodel(nodes):
         *[get_performance(worker)
           for worker in workers])
 
-
+    """
     for current_round in range(federated_rounds):
         print ("Starting round" + str(current_round))
         results = await asyncio.gather(
@@ -264,6 +262,7 @@ async def sendmodel(nodes):
         traced_model = avg_model
         print ("Evaluating averaged model")
         test(traced_model)
+    """
 
     print ("Finished Federated training - closing connections")
     for worker in workers:
