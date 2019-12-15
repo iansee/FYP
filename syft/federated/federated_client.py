@@ -2,6 +2,7 @@ import torch as th
 from torch.utils.data import BatchSampler, RandomSampler, SequentialSampler
 import numpy as np
 import syft
+import os
 from syft.generic import ObjectStorage
 from syft.federated.train_config import TrainConfig
 from syft.federated.monitor import monitoring
@@ -63,7 +64,11 @@ class FederatedClient(ObjectStorage):
         else:
             raise ValueError("Unknown optimizer: {}".format(optimizer_name))
         return self.optimizer
-    
+
+    def send_central(self):
+        #SEND back central server 3MB
+        file = bytearray(os.urandom(3000000))
+        return file
 
     def dataset(self):
         print ('Dataset')
