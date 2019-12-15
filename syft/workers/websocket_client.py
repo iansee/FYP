@@ -10,6 +10,7 @@ import logging
 import ssl
 import time
 import asyncio
+import os
 
 
 import syft as sy
@@ -62,28 +63,44 @@ class WebsocketClientWorker(BaseWorker):
             args["sslopt"] = {"cert_reqs": ssl.CERT_NONE}
 
         self.ws = websocket.create_connection(**args)
-        
+      
     async def perf_ping(self):
-        message=self.create_message_execute_command(command_name="start_monitoring",command_owner="self")
+        self.start_monitor_node()
+        file = bytearray(os.urandom(2000000))
+        self.ws.send(file)
+        #Server will send 2MB to client
+        
+        message=self.create_message_execute_command(command_name="send_central",command_owner="self")
+        #CALL send_central on the client node. send_central will send back 3MB
         serialized_message = sy.serde.serialize(message)
         self._recv_msg(serialized_message)
-
-        for x in range(1,1000):
-            self.ws.ping()
-            await asyncio.sleep(0.01)
-
         
-        message = self.create_message_execute_command(command_name="stop_monitoring",command_owner="self")
-        serialized_message = sy.serde.serialize(message)
-        info = self._recv_msg(serialized_message)
-        
+        info = self.stop_monitor_node()        
         return info
 
     def data_setamount(self):
         message=self.create_message_execute_command(command_name="dataset",command_owner="self")
         serialized_message = sy.serde.serialize(message)
         info = self._recv_msg(serialized_message)
+        info = sy.serde.deserialize(info)
+
         return info
+
+    def start_monitor_node(self):
+        message = self.create_message_execute_command(command_name="start_monitoring",command_owner="self")
+        serialized_message = sy.serde.serialize(message)
+        self._recv_msg(serialized_message)
+
+    def stop_monitor_node(self):
+        message = self.create_message_execute_command(command_name="stop_monitoring",command_owner="self")
+        serialized_message = sy.serde.serialize(message)
+        info = self._recv_msg(serialized_message)
+        info = sy.serde.deserialize(info)
+        
+        return info
+
+        
+
             
     def close(self):
         self.ws.close()
