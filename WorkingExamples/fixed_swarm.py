@@ -28,7 +28,7 @@ def runcommand(number, networkslice,network):
     name = 'h%s'%number
     host = network.get(name)
     print ('Created Federated Client on Host {}'.format(name))
-    command = ('python /home/mininet/imported_files/phase2/Federated_Swarm.py %s %s' %(number,workernodes))
+    command = ('python /home/mininet/imported_files/phase2/Federated_Swarm.py %s %s' %(number,networkslice))
     host.sendCmd(command)
 
 def start_CLI(network):
