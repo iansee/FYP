@@ -27,6 +27,7 @@ lr = 0.01
 no_epoch = 1
 federated_rounds = 10
 fractionToUse = 5
+target_accuracy = 80
 
 class TestDataset:
     def __init__(self,transform=None):
@@ -229,13 +230,15 @@ async def sendmodel(nodes):
     traced_model = torch.jit.trace(model,mock_data)
 
     print ('Performance measurments')
-    perf_measurement = await asyncio.gather(
+    performance = await asyncio.gather(
         *[get_performance(worker)
           for worker in workers])
+    cost_dict = { "h"+str(i+2) : performance[i][0] for i in range(0, len(performance) ) }
+    utility_dict = { "h"+str(i+2) : performance[i][1] for i in range(0, len(performance) ) }
 
-    """
     for current_round in range(federated_rounds):
         print ("Starting round" + str(current_round))
+        # chosen_workers = choose_worker()
         results = await asyncio.gather(
             *[
                 fit_model_on_worker(worker = worker,
@@ -261,8 +264,11 @@ async def sendmodel(nodes):
         avg_model = utils.federated_avg(models)
         traced_model = avg_model
         print ("Evaluating averaged model")
-        test(traced_model)
-    """
+        accuracy = test(traced_model)
+        if accuracy > target_accuracy:
+            print("Target accuracy has been reached. Terminating training.")
+            break;
+
 
     print ("Finished Federated training - closing connections")
     for worker in workers:
