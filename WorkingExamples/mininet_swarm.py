@@ -24,11 +24,11 @@ class SingleSwitchTopo( Topo ):
             print ('Added host %s' % (h + 1))
 
     
-def runcommand(number,network):
+    def runcommand(number, workernodes,network):
     name = 'h%s'%number
     host = network.get(name)
     print ('Created Federated Client on Host {}'.format(name))
-    command = ('python /home/mininet/imported_files/Federated_Swarm.py %s' %(number))
+    command = ('python /home/mininet/imported_files/phase2/Federated_Swarm.py %s %s' %(number,workernodes))
     host.sendCmd(command)
 
 def start_CLI(network):
@@ -72,6 +72,9 @@ def main():
     bad_nodes = int(input("Enter amount of nodes with faulty connection:"))
     upperbound = int(input("Enter the upper bound for loss:"))
     lowerbound = int(input("Enter the lower bound for loss:"))
+
+    worker_nodes = nodes - 1
+    
     
     topo = SingleSwitchTopo(nodes)
     net = Mininet( topo=topo, link=TCLink )
@@ -85,7 +88,7 @@ def main():
     linkfunc(net,upperbound,lowerbound,bad_nodes,nodes)
     
     for i in range(2,nodes+1):
-        runcommand(i,net)
+        runcommand(i,worker_nodes,net) #
         
 
     commandprompt.join()
