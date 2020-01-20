@@ -20,14 +20,20 @@ import sys
 global batchsize
 global lr
 global no_epoch
-global federated_rounds
+global max_federated_rounds
+global fractionToUse
+global target_accuracy
+global a_nom
+global b_nom
 
 batchsize=1000
 lr = 0.01
 no_epoch = 1
-federated_rounds = 10
+max_federated_rounds = 100
 fractionToUse = 5
 target_accuracy = 80
+a_nom = 1
+b_nom = 5
 
 class TestDataset:
     def __init__(self,transform=None):
@@ -199,11 +205,14 @@ async def get_performance(worker):
     network = await worker.perf_ping()
 
     data = worker.data_setamount()
-    
+
     print (worker.id+" has network performance of ")
+    total_bytes = 0
     for x in network:
         print (x + ':' + str(network[x]))
+        total_bytes = total_bytes + network[x]
     print (worker.id+" has dataset of {}".format(data))
+    return (total_bytes/8000000, data)
 
 
 def connect_to_nodes(nodes):
@@ -235,10 +244,16 @@ async def sendmodel(nodes):
           for worker in workers])
     cost_dict = { "h"+str(i+2) : performance[i][0] for i in range(0, len(performance) ) }
     utility_dict = { "h"+str(i+2) : performance[i][1] for i in range(0, len(performance) ) }
+    training_count_dict = { "h"+str(i+2) : 0 for i in range(0, len(performance)) }
 
-    for current_round in range(federated_rounds):
+    for current_round in range(max_federated_rounds):
+        print (cost_dict)
+        print (utility_dict)
+        print (training_count_dict)
         print ("Starting round" + str(current_round))
-        # chosen_workers = choose_worker()
+        chosen_workers = choose_worker(cost_dict, utility_dict, training_count_dict)
+        for w in chosen_workers:
+            training_count_dict[w] += 1
         results = await asyncio.gather(
             *[
                 fit_model_on_worker(worker = worker,
@@ -247,7 +262,7 @@ async def sendmodel(nodes):
                                          curr_round = current_round,
                                          lr = lr,
                                          no_federated_epochs = no_epoch)
-                for worker in workers]
+                for worker in filter(lambda w : w.id in chosen_workers, workers)]
             )
         models = {}
         loss_vals = {}
@@ -274,6 +289,9 @@ async def sendmodel(nodes):
     for worker in workers:
         worker.close()
 
+def choose_worker(cost_dict, utility_dict, training_count_dict):
+    efficiency = { host : (utility_dict[host]/(a_nom*training_count_dict[host]+b_nom))/cost_dict[host] for host in utility_dict}
+    return [w[0] for w in sorted(efficiency.items(), key=lambda h: h[1], reverse=True)[:3]]
 
 def main(nodes):
     #centralized_model = train(lr,no_epoch)
