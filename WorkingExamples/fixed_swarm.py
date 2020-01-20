@@ -96,7 +96,7 @@ def main():
 
 
     print ('Starting varying packet loss')
-    linkfunc(net,upperbound,lowerbound,bad_nodes,nodes)
+    linkfunc(net)
 
 
     totalslices = list(range(0,20))
