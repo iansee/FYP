@@ -13,9 +13,8 @@ from torchvision import datasets
 from torchvision import transforms
 import numpy as np
 
-import tensorflow_federated as tff
 import os.path
-from tensorflow_federated.python.simulation.hdf5_client_data import HDF5ClientData
+from no_tff import HDF5ClientData
 
 
 class TrainDataset:
@@ -51,7 +50,11 @@ class TrainDataset:
     def __len__(self):
         return len(self.target)
 
-def main(number, slice_of_data):
+def main(number, start_slice,endslice):
+    start_slice = int(start_slice)
+    end_slice = int(endslice)
+    
+    #TBD
     mnist_dataset = TrainDataset(transform=transforms.Compose([
       transforms.ToTensor(),
       transforms.Normalize(
@@ -72,4 +75,4 @@ def main(number, slice_of_data):
     server.start()
 
 
-main (sys.argv[1],sys.argv[2])
+main (sys.argv[1],sys.argv[2], sys.argv[3])
