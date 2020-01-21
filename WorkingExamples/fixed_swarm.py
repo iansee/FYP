@@ -14,6 +14,11 @@ from mininet.util import dumpNodeConnections
 from mininet.cli import CLI
 
 
+#Hard coded node spawning
+#2,3,4 -> 2,3,5 0%
+#5,6,7 -> 2,3,5 5%
+#8,9,10 -> 2,3,5 10%
+
 class SingleSwitchTopo( Topo ):
     "Single switch connected to n hosts."
     def build( self, n=0 ):
@@ -24,11 +29,11 @@ class SingleSwitchTopo( Topo ):
             print ('Added host %s' % (h + 1))
 
     
-def runcommand(number, networkslice,network):
+def runcommand(number, startslice,endslice,network):
     name = 'h%s'%number
     host = network.get(name)
     print ('Created Federated Client on Host {}'.format(name))
-    command = ('python /home/mininet/imported_files/phase2/Federated_Swarm.py %s %s' %(number,networkslice))
+    command = ('FILEPATH/Federated_Swarm.py %s %s %s' %(number,startslice,endslice))
     host.sendCmd(command)
 
 def start_CLI(network):
@@ -43,15 +48,20 @@ def linkfunc(net):
         this_node_n = net.get(this_node)
         linkslist = net.linksBetween(switch,this_node_n)
         thislink = linkslist[0]
-        if counter <= 4:
+        if counter <= 4: #NODES 2,3,4
             thislink.intf1.config(loss=0)
             thislink.intf2.config(loss=0)
-        elif counter >=4 and counter <=7:
+            print ("{} has been choosen as a faulty host with a loss of {}".format(this_node,0))
+
+        elif counter >=5 and counter <=7: #NODES 5,6,7
             thislink.intf1.config(loss=5)
             thislink.intf2.config(loss=5)
-        else:
+            print ("{} has been choosen as a faulty host with a loss of {}".format(this_node,5))
+        else:#NODES 8,9,10
             thislink.intf1.config(loss=10)
             thislink.intf2.config(loss=10)
+            print ("{} has been choosen as a faulty host with a loss of {}".format(this_node,10))
+
         
         counter +=1
             
@@ -98,18 +108,30 @@ def main():
     print ('Starting varying packet loss')
     linkfunc(net)
 
-
-    totalslices = list(range(0,20))
-    counter = 0
-
     for i in range (2,11):
-        if counter % 3 == 0:
-            runcommand(i,totalslices[counter:counter+2],network)
-        elif counter %3 == 1:
-            runcommand(i,(totalslices[counter:counter+3],network)
-        else:
-            runcommand(i, (totalslices[counter:counter+4],network)
-    counter +=1
+        if i % 3 == 2:
+            print ("host",i)
+            endslice = startslice +1
+            runcommand(i,startslice,endslice,net)
+            print ("startingslice",startslice)
+            print ("endingslice",endslice)
+            startslice = endslice+1
+            
+        elif i %3 ==0:
+            print ("host",i)
+            endslice = startslice +2
+            runcommand(i,startslice,endslice,net)
+            print ("startingslice",startslice)
+            print ("endingslice",endslice)
+            startslice = endslice+1
+            
+        elif i %3 ==1:
+            print ("host",i)
+            endslice = startslice +4
+            print ("startingslice",startslice)
+            print ("endingslice",endslice)
+            runcommand(i,startslice,endslice,net)
+            startslice = endslice+1
         
     
     commandprompt.join()
