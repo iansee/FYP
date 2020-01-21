@@ -45,3 +45,8 @@ Browsable  = yes
 Sudo service smbd restart
 Sudo ufw allow samba
 Sudo smbpasswd – a mininet
+
+
+*Using the tensorflow federated dataset:
+To circumvent the usage of tff, extract the HDFClient data file which is the only relevant class we need from tff
+This will resolve the conflicts between tensorflow version required for syft and tensorflow
