@@ -107,7 +107,9 @@ def main():
 
     print ('Starting varying packet loss')
     linkfunc(net)
-
+    
+    startslice = 0 #(0-29)
+    
     for i in range (2,11):
         if i % 3 == 2:
             print ("host",i)
