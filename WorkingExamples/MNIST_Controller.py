@@ -12,7 +12,8 @@ import h5py
 import collections
 import six
 import os.path
-from tensorflow_federated.python.simulation.hdf5_client_data import HDF5ClientData
+#from tensorflow_federated.python.simulation.hdf5_client_data import HDF5ClientData
+from no_tff import HDF5ClientData
 import numpy as np
 import tensorflow as tf
 import sys
