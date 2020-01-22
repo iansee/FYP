@@ -3,10 +3,11 @@ from torch.utils.data import BatchSampler, RandomSampler, SequentialSampler
 import numpy as np
 import syft
 import os
+import sys
 from syft.generic import ObjectStorage
 from syft.federated.train_config import TrainConfig
 from syft.federated.monitor import monitoring
-
+from objsize import get_deep_size
 
 class FederatedClient(ObjectStorage):
     """A Client able to execute federated learning in local datasets."""
@@ -48,7 +49,6 @@ class FederatedClient(ObjectStorage):
         self, optimizer_name: str, model, optimizer_args: dict
     ) -> th.optim.Optimizer:
         """Build an optimizer if needed.
-
         Args:
             optimizer_name: A string indicating the optimizer name.
             optimizer_args: A dict containing the args used to initialize the optimizer.
@@ -66,9 +66,25 @@ class FederatedClient(ObjectStorage):
         return self.optimizer
 
     def send_central(self):
-        #SEND back central server 3MB
-        file = bytearray(os.urandom(3000000))
+        file = bytearray(os.urandom(1000000))
         return file
+
+
+    def send_dataset(self):
+        print ('send dataset')
+        data = self.datasets['targeted'].data
+        target = self.datasets['targeted'].targets
+        target = list(map(int,target))
+
+        print (len(target))
+        print (len(data))
+        
+        #transform = self.datasets['targeted'].transform
+
+        thisdataset = [data,target]
+        return thisdataset
+
+
 
     def dataset(self):
         print ('Dataset')
