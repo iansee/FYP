@@ -42,18 +42,17 @@ def start_CLI(network):
 def linkfunc(net):
     switch = net.get('s1')
     nodelist = []
-    counter = 1
     for i in range (2,11):
         this_node = 'h{}'.format(i)
         this_node_n = net.get(this_node)
         linkslist = net.linksBetween(switch,this_node_n)
         thislink = linkslist[0]
-        if counter <= 4: #NODES 2,3,4
+        if i <= 4: #NODES 2,3,4
             thislink.intf1.config(loss=0)
             thislink.intf2.config(loss=0)
             print ("{} has been choosen as a faulty host with a loss of {}".format(this_node,0))
 
-        elif counter >=5 and counter <=7: #NODES 5,6,7
+        elif 5 <= i <= 7: #NODES 5,6,7
             thislink.intf1.config(loss=5)
             thislink.intf2.config(loss=5)
             print ("{} has been choosen as a faulty host with a loss of {}".format(this_node,5))
@@ -63,7 +62,6 @@ def linkfunc(net):
             print ("{} has been choosen as a faulty host with a loss of {}".format(this_node,10))
 
         
-        counter +=1
             
     '''
     counter = 0
