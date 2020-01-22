@@ -13,12 +13,13 @@ from torchvision import datasets
 from torchvision import transforms
 import numpy as np
 
+import tensorflow_federated as tff
 import os.path
 from no_tff import HDF5ClientData
 
 
 class TrainDataset:
-    def __init__(self,transform=None, number=2, slice_of_data):
+    def __init__(self,transform=None, number=2, start_slice=0, end_slice=0):
         fileprefix = "fed_emnist_digitsonly"
         #dir_path = os.path.dirname("/home/mininet/")
         dir_path = os.getcwd()
@@ -29,10 +30,10 @@ class TrainDataset:
         data = np.empty((0,28,28), np.float32)
         target = np.empty((0), np.int_)
         offset = int(number) - 1
-        for i in range(int(numberofclients/20):
-            for j in slice_of_data:
+        for i in range(int(numberofclients/30)):
+            for j in range(start_slice, end_slice+1):
                 clientdataset = collections.OrderedDict((name, ds[()]) for name, ds in sorted(
-                    six.iteritems(trainFile[HDF5ClientData._EXAMPLES_GROUP][train.client_ids[i*20+j]])))
+                    six.iteritems(trainFile[HDF5ClientData._EXAMPLES_GROUP][train.client_ids[i*30+j]])))
                 data = np.concatenate((data, clientdataset['pixels']))
                 target = np.concatenate((target, clientdataset['label']), axis=0)
         self.target = list(target)
@@ -50,16 +51,12 @@ class TrainDataset:
     def __len__(self):
         return len(self.target)
 
-def main(number, start_slice,endslice):
-    start_slice = int(start_slice)
-    end_slice = int(endslice)
-    
-    #TBD
+def main(number, start_slice, end_slice):
     mnist_dataset = TrainDataset(transform=transforms.Compose([
       transforms.ToTensor(),
       transforms.Normalize(
         (0.1307,), (0.3081,))
-        ]), number=number, slice_of_data=slice_of_data)
+        ]), number=number, start_slice=start_slice, end_slice=end_slice)
     _id = 'h%s'%number
     ip  = '10.0.0.%s'%number
 
@@ -75,4 +72,4 @@ def main(number, start_slice,endslice):
     server.start()
 
 
-main (sys.argv[1],sys.argv[2], sys.argv[3])
+main (sys.argv[1], int(sys.argv[2]), int(sys.argv[3]))

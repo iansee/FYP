@@ -26,7 +26,7 @@ import six
 import tensorflow as tf
 
 
-class HDF5ClientData(ClientData):
+class HDF5ClientData():
   """A `tff.simulation.ClientData` backed by an HDF5 file.
   This class expects that the HDF5 file has a top-level group `examples` which
   contains further subgroups, one per user, named by the user ID.
