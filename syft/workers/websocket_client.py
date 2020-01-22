@@ -68,10 +68,8 @@ class WebsocketClientWorker(BaseWorker):
         self.start_monitor_node()
         file = bytearray(os.urandom(2000000))
         self.ws.send(file)
-        #Server will send 2MB to client
         
         message=self.create_message_execute_command(command_name="send_central",command_owner="self")
-        #CALL send_central on the client node. send_central will send back 3MB
         serialized_message = sy.serde.serialize(message)
         self._recv_msg(serialized_message)
         
@@ -86,6 +84,13 @@ class WebsocketClientWorker(BaseWorker):
 
         return info
 
+    async def data_setget(self):
+        message=self.create_message_execute_command(command_name="send_dataset",command_owner="self")
+        serialized_message = sy.serde.serialize(message)
+        dataset = sy.serde.deserialize(self._recv_msg(serialized_message))
+
+        return dataset
+
     def start_monitor_node(self):
         message = self.create_message_execute_command(command_name="start_monitoring",command_owner="self")
         serialized_message = sy.serde.serialize(message)
@@ -99,9 +104,6 @@ class WebsocketClientWorker(BaseWorker):
         
         return info
 
-        
-
-            
     def close(self):
         self.ws.close()
 
