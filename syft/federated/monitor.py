@@ -12,6 +12,7 @@ class monitoring():
         self.drop_in = None
         self.drop_out = None
         self.time_start = None
+        self.networkcost = None
 
         interfaces = psutil.net_io_counters(pernic=True)
         for interface in interfaces:
@@ -45,9 +46,13 @@ class monitoring():
         new_drop_in =network_obj.dropin - self.drop_in
         new_drop_out = network_obj.dropout - self.drop_out
         time_elapsed = time.time() - self.time_start
+        self.networkcost = new_bytes_sent + new_bytes_recv
         
         return {"bytes sent" : new_bytes_sent, "bytes recieved" :new_bytes_recv,
                 "packets sent" : new_packets_sent , "packets recieved": new_packets_recv,
                 "Incoming errors" : new_err_in, "Outgoing errors" : new_err_out,
                 "Drop ins": new_drop_in, "Drop outs" : new_drop_out ,"time_elapsed" : time_elapsed}
+
+    def getnetworkcost(self):
+        return self.networkcost
                 
