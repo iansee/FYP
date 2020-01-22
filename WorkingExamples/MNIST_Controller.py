@@ -12,7 +12,6 @@ import h5py
 import collections
 import six
 import os.path
-#from tensorflow_federated.python.simulation.hdf5_client_data import HDF5ClientData
 from no_tff import HDF5ClientData
 import numpy as np
 import tensorflow as tf
@@ -21,20 +20,20 @@ import sys
 global batchsize
 global lr
 global no_epoch
-global max_federated_rounds
-global fractionToUse
-global target_accuracy
-global a_nom
-global b_nom
+global no_federated_epochs
+global federated_rounds
+
+import csv
 
 batchsize=1000
 lr = 0.01
-no_epoch = 1
-max_federated_rounds = 100
+no_epoch = 50
+no_federated_epochs = 1
+max_federated_rounds = 50
 fractionToUse = 5
-target_accuracy = 80
-a_nom = 1
-b_nom = 5
+target_accuracy = 100
+a_nom = 0.5
+b_nom = 1
 
 class TestDataset:
     def __init__(self,transform=None):
@@ -46,10 +45,9 @@ class TestDataset:
         numberofclients = len(test.client_ids)
         data = np.empty((0,28,28), np.float32)
         target = np.empty((0), np.int_)
-        for i in range(int(numberofclients/fractionToUse)):
+        for i in range(int(numberofclients)):
             clientdataset = collections.OrderedDict((name, ds[()]) for name, ds in sorted(
-                six.iteritems(testFile[HDF5ClientData._EXAMPLES_GROUP][test.client_ids[i*fractionToUse]])))
-            # data = np.concatenate((data, np.reshape(clientdataset['pixels'], (-1, 1, 28, 28))))
+                six.iteritems(testFile[HDF5ClientData._EXAMPLES_GROUP][test.client_ids[i]])))
             data = np.concatenate((data, clientdataset['pixels']))
             target = np.concatenate((target, clientdataset['label']), axis=0)
         self.target = list(target)
@@ -126,17 +124,28 @@ class Net(nn.Module):
 def train(lr,epoch):
     net = Net()
     optimizer = torch.optim.SGD(net.parameters(),lr=lr)
+    loss_data = []
+    acc_data = []
     for i in range (0,epoch):
         current_epoch = i+1
+        print ("Epoch:" + str(current_epoch))
         for batch_no,(data,target) in enumerate (train_loader):
             optimizer.zero_grad()
             output = net(data)
             loss = F.nll_loss(output, target)
             loss.backward()
             optimizer.step()
-            print ("Epoch:" + str(current_epoch))
-            print ("Batch" + str(batch_no))
-            print ("Loss:" + str(loss.item()))
+            # print ("Epoch:" + str(current_epoch))
+            # print ("Batch" + str(batch_no))
+            # print ("Loss:" + str(loss.item()))
+        test_acc, test_loss = test(net)
+        loss_data.append(test_loss)
+        acc_data.append(test_acc)
+
+    with open('results.csv', 'w', newline='') as csvfile:
+        writer = csv.writer(csvfile, delimiter=' ', quotechar='|', quoting=csv.QUOTE_MINIMAL)
+        writer.writerow(loss_data)
+        writer.writerow(acc_data)
     return net
 
 
@@ -154,7 +163,7 @@ def test(model):
     accuracy = 100.*correct / len(test_loader.dataset)
     print('\nTest set: Avg. loss: {:.4f}, Accuracy: {}/{} ({:.0f}%)\n'.format(
     test_loss, correct, len(test_loader.dataset),accuracy))
-    return accuracy
+    return accuracy, test_loss
 
 @torch.jit.script
 def loss_fn(pred, target):
@@ -213,7 +222,7 @@ async def get_performance(worker):
         print (x + ':' + str(network[x]))
         total_bytes = total_bytes + network[x]
     print (worker.id+" has dataset of {}".format(data))
-    return (total_bytes/8000000, data)
+    return (total_bytes/4000000, data)
 
 
 def connect_to_nodes(nodes):
@@ -246,15 +255,17 @@ async def sendmodel(nodes):
     cost_dict = { "h"+str(i+2) : performance[i][0] for i in range(0, len(performance) ) }
     utility_dict = { "h"+str(i+2) : performance[i][1] for i in range(0, len(performance) ) }
     training_count_dict = { "h"+str(i+2) : 0 for i in range(0, len(performance)) }
-
+    loss_data = []
+    acc_data = []
+    chosen_worker_data = []
     for current_round in range(max_federated_rounds):
-        print (cost_dict)
-        print (utility_dict)
-        print (training_count_dict)
         print ("Starting round" + str(current_round))
         chosen_workers = choose_worker(cost_dict, utility_dict, training_count_dict)
+        chosen_workers = choose_worker(cost_dict, utility_dict, training_count_dict)
+        chosen_worker_string = ""
         for w in chosen_workers:
             training_count_dict[w] += 1
+            chosen_worker_string = chosen_worker_string + w + " "
         results = await asyncio.gather(
             *[
                 fit_model_on_worker(worker = worker,
@@ -280,13 +291,21 @@ async def sendmodel(nodes):
         avg_model = utils.federated_avg(models)
         traced_model = avg_model
         print ("Evaluating averaged model")
-        accuracy = test(traced_model)
+        accuracy, loss = test(traced_model)
+        loss_data.append(loss)
+        acc_data.append(accuracy)
+        chosen_worker_data.append(chosen_worker_string)
         if accuracy > target_accuracy:
             print("Target accuracy has been reached. Terminating training.")
             break;
 
 
     print ("Finished Federated training - closing connections")
+    with open('federated_results.csv', 'w', newline='') as csvfile:
+        writer = csv.writer(csvfile, delimiter=' ', quotechar='|', quoting=csv.QUOTE_MINIMAL)
+        writer.writerow(loss_data)
+        writer.writerow(acc_data)
+        writer.writerow(chosen_worker_data)
     for worker in workers:
         worker.close()
 
