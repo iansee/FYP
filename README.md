@@ -31,7 +31,9 @@ Mininet installation:
 -	Pip install syft
 8.	https://github.com/OpenMined/PySyft/issues/2275 - downgrade pytorch
 -	Sudo conda install pytorch=1.0.1 torchvision cudatoolkit=10.0 -c pytorch
-9.	Enable mininet by adding the file path
+9.	Installation of updated tensorflow
+-	Sudo pip install -U "tensorflow=1.*"
+10.	Enable mininet by adding the file path
 	sudo echo ~/.bashrc export PYTHONPATH="${PYTHONPATH}:/usr/local/lib/python2.7/dist-packages/mininet-2.2.2-py2.7.egg"
 	
 *Extra samba:
