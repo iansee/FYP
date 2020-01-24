@@ -29,10 +29,10 @@ import csv
 
 batchsize=1000
 lr = 0.01
-no_epoch = 50
+#no_epoch = 50
 no_federated_epochs = 1
 max_federated_rounds = 50
-fractionToUse = 5
+#fractionToUse = 5
 target_accuracy = 100
 a_nom = 0.5
 b_nom = 1
@@ -64,8 +64,12 @@ class TestDataset:
         return x,y
     def __len__(self):
         return len(self.target)
-'''
+    
 
+
+
+#Training dataset and loader
+'''
 class TrainDataset:
     def __init__(self,transform=None):
         fileprefix = "fed_emnist_digitsonly"
@@ -93,14 +97,8 @@ class TrainDataset:
         return x,y
     def __len__(self):
         return len(self.target)
-'''
-test_loader = torch.utils.data.DataLoader(TestDataset(transform=transforms.Compose([
-  transforms.ToTensor(),
-  transforms.Normalize(
-    (0.1307,), (0.3081,))
-])),batch_size=batchsize,shuffle=True)
 
-'''
+        
 train_loader = torch.utils.data.DataLoader(TrainDataset(transform=transforms.Compose([
   transforms.ToTensor(),
   transforms.Normalize(
@@ -148,13 +146,18 @@ def train(lr,epoch):
         test_acc, test_loss = test(net)
         loss_data.append(test_loss)
         acc_data.append(test_acc)
-
     with open('results.csv', 'w', newline='') as csvfile:
         writer = csv.writer(csvfile, delimiter=' ', quotechar='|', quoting=csv.QUOTE_MINIMAL)
         writer.writerow(loss_data)
         writer.writerow(acc_data)
     return net
 '''
+
+test_loader = torch.utils.data.DataLoader(TestDataset(transform=transforms.Compose([
+  transforms.ToTensor(),
+  transforms.Normalize(
+    (0.1307,), (0.3081,))
+])),batch_size=batchsize,shuffle=True)
 
 def test(model):
     model.eval()
@@ -252,8 +255,16 @@ async def sendmodel(nodes=10):
     utility_dict = { "h"+str(i+2) : performance[i][1] for i in range(0, len(performance) ) }
     training_count_dict = { "h"+str(i+2) : 0 for i in range(0, len(performance)) }
 
-    for current_round in range(max_federated_rounds):
+    #Write to CSV initially
+    to_file = ["Round","Accuracy","Loss","Workers called","Total networkcost"]
 
+    with open('federated_results.csv', 'a', newline='') as csvfile:
+        writer = csv.writer(csvfile, delimiter=',', quotechar='|', quoting=csv.QUOTE_MINIMAL)
+        writer.writerow(to_file)
+    
+    
+    for current_round in range(max_federated_rounds):
+        
         
         centralizedmonitor = monitoring()
         centralizedmonitor.start()
@@ -283,23 +294,24 @@ async def sendmodel(nodes=10):
         costofround = costofround / 1000000
         totalnetworkcost += costofround
         
-        '''
+        
         for worker_id, worker_model, worker_loss in results:
             if worker_model is not None:
                 models[worker_id] = worker_model
-                print ("Evaluating WORKER {}".format(worker_id))
-                test(worker_model)
-        '''
 
         avg_model = utils.federated_avg(models)
         traced_model = avg_model
         print ("Evaluating averaged model")
         accuracy, loss = test(traced_model)
-
-        to_file = [str(accuracy),str(loss),chosen_worker_string,totalnetworkcost]
+        
+        string_accuracy = ('{:.2f}'.format(accuracy))
+        string_loss = str(loss)
+        string_round = str(current_round + 1)
+        
+        to_file = [string_round,string_accuracy,string_loss,chosen_worker_string,totalnetworkcost]
 
         with open('federated_results.csv', 'a', newline='') as csvfile:
-            writer = csv.writer(csvfile, delimiter=' ', quotechar='|', quoting=csv.QUOTE_MINIMAL)
+            writer = csv.writer(csvfile, delimiter=',', quotechar='|', quoting=csv.QUOTE_MINIMAL)
             writer.writerow(to_file)
 
         if accuracy > target_accuracy:
