@@ -65,6 +65,7 @@ class WebsocketClientWorker(BaseWorker):
         self.ws = websocket.create_connection(**args)
       
     async def perf_ping(self):
+        #Tells the node to start monitoring itself
         self.start_monitor_node()
         file = bytearray(os.urandom(2000000))
         self.ws.send(file)
@@ -72,7 +73,8 @@ class WebsocketClientWorker(BaseWorker):
         message=self.create_message_execute_command(command_name="send_central",command_owner="self")
         serialized_message = sy.serde.serialize(message)
         self._recv_msg(serialized_message)
-        
+
+        #get the node to stop monitoring itself
         info = self.stop_monitor_node()        
         return info
 
@@ -167,11 +169,9 @@ class WebsocketClientWorker(BaseWorker):
 
     async def async_fit(self, dataset_key: str, return_ids: List[int] = None):
         """Asynchronous call to fit function on the remote location.
-
         Args:
             dataset_key: Identifier of the dataset which shall be used for the training.
             return_ids: List of return ids.
-
         Returns:
             See return value of the FederatedClient.fit() method.
         """
@@ -209,11 +209,9 @@ class WebsocketClientWorker(BaseWorker):
 
     def fit(self, dataset_key: str, **kwargs):
         """Call the fit() method on the remote worker (WebsocketServerWorker instance).
-
         Note: The argument return_ids is provided as kwargs as otherwise there is a miss-match
         with the signature in VirtualWorker.fit() method. This is important to be able to switch
         between virtual and websocket workers.
-
         Args:
             dataset_key: Identifier of the dataset which shall be used for the training.
             **kwargs:
@@ -238,14 +236,12 @@ class WebsocketClientWorker(BaseWorker):
         return_raw_accuracy: bool = True,
     ):
         """Call the evaluate() method on the remote worker (WebsocketServerWorker instance).
-
         Args:
             dataset_key: Identifier of the local dataset that shall be used for training.
             return_histograms: If True, calculate the histograms of predicted classes.
             nr_bins: Used together with calculate_histograms. Provide the number of classes/bins.
             return_loss: If True, loss is calculated additionally.
             return_raw_accuracy: If True, return nr_correct_predictions and nr_predictions
-
         Returns:
             Dictionary containing depending on the provided flags:
                 * loss: avg loss on data set, None if not calculated.
@@ -266,12 +262,9 @@ class WebsocketClientWorker(BaseWorker):
 
     def __str__(self):
         """Returns the string representation of a Websocket worker.
-
         A to-string method for websocket workers that includes information from the websocket server
-
         Returns:
             The Type and ID of the worker
-
         """
         out = "<"
         out += str(type(self)).split("'")[1].split(".")[-1]
