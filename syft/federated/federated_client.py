@@ -7,7 +7,6 @@ import sys
 from syft.generic import ObjectStorage
 from syft.federated.train_config import TrainConfig
 from syft.federated.monitor import monitoring
-from objsize import get_deep_size
 
 class FederatedClient(ObjectStorage):
     """A Client able to execute federated learning in local datasets."""
@@ -31,7 +30,6 @@ class FederatedClient(ObjectStorage):
 
     def set_obj(self, obj: object):
         """Registers objects checking if which objects it should cache.
-
         Args:
             obj: An object to be registered.
         """
@@ -75,9 +73,6 @@ class FederatedClient(ObjectStorage):
         data = self.datasets['targeted'].data
         target = self.datasets['targeted'].targets
         target = list(map(int,target))
-
-        print (len(target))
-        print (len(data))
         
         #transform = self.datasets['targeted'].transform
 
@@ -102,11 +97,9 @@ class FederatedClient(ObjectStorage):
 
     def fit(self, dataset_key: str, **kwargs):
         """Fits a model on the local dataset as specified in the local TrainConfig object.
-
         Args:
             dataset_key: Identifier of the local dataset that shall be used for training.
             **kwargs: Unused.
-
         Returns:
             loss: Training loss on the last batch of training data.
         """
@@ -174,14 +167,12 @@ class FederatedClient(ObjectStorage):
         return_raw_accuracy: bool = True,
     ):
         """Evaluates a model on the local dataset as specified in the local TrainConfig object.
-
         Args:
             dataset_key: Identifier of the local dataset that shall be used for training.
             return_histograms: If True, calculate the histograms of predicted classes.
             nr_bins: Used together with calculate_histograms. Provide the number of classes/bins.
             return_loss: If True, loss is calculated additionally.
             return_raw_accuracy: If True, return nr_correct_predictions and nr_predictions
-
         Returns:
             Dictionary containing depending on the provided flags:
                 * loss: avg loss on data set, None if not calculated.
