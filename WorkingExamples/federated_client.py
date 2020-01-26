@@ -3,10 +3,10 @@ from torch.utils.data import BatchSampler, RandomSampler, SequentialSampler
 import numpy as np
 import syft
 import os
-from syft.generic.object_storage import ObjectStorage
+import sys
+from syft.generic import ObjectStorage
 from syft.federated.train_config import TrainConfig
 from syft.federated.monitor import monitoring
-
 
 class FederatedClient(ObjectStorage):
     """A Client able to execute federated learning in local datasets."""
@@ -30,7 +30,6 @@ class FederatedClient(ObjectStorage):
 
     def set_obj(self, obj: object):
         """Registers objects checking if which objects it should cache.
-
         Args:
             obj: An object to be registered.
         """
@@ -48,7 +47,6 @@ class FederatedClient(ObjectStorage):
         self, optimizer_name: str, model, optimizer_args: dict
     ) -> th.optim.Optimizer:
         """Build an optimizer if needed.
-
         Args:
             optimizer_name: A string indicating the optimizer name.
             optimizer_args: A dict containing the args used to initialize the optimizer.
@@ -66,9 +64,22 @@ class FederatedClient(ObjectStorage):
         return self.optimizer
 
     def send_central(self):
-        #SEND back central server 3MB
-        file = bytearray(os.urandom(3000000))
+        file = bytearray(os.urandom(1000000))
         return file
+
+
+    def send_dataset(self):
+        print ('send dataset')
+        data = self.datasets['targeted'].data
+        target = self.datasets['targeted'].targets
+        target = list(map(int,target))
+        
+        #transform = self.datasets['targeted'].transform
+
+        thisdataset = [data,target]
+        return thisdataset
+
+
 
     def dataset(self):
         print ('Dataset')
@@ -86,11 +97,9 @@ class FederatedClient(ObjectStorage):
 
     def fit(self, dataset_key: str, **kwargs):
         """Fits a model on the local dataset as specified in the local TrainConfig object.
-
         Args:
             dataset_key: Identifier of the local dataset that shall be used for training.
             **kwargs: Unused.
-
         Returns:
             loss: Training loss on the last batch of training data.
         """
@@ -158,14 +167,12 @@ class FederatedClient(ObjectStorage):
         return_raw_accuracy: bool = True,
     ):
         """Evaluates a model on the local dataset as specified in the local TrainConfig object.
-
         Args:
             dataset_key: Identifier of the local dataset that shall be used for training.
             return_histograms: If True, calculate the histograms of predicted classes.
             nr_bins: Used together with calculate_histograms. Provide the number of classes/bins.
             return_loss: If True, loss is calculated additionally.
             return_raw_accuracy: If True, return nr_correct_predictions and nr_predictions
-
         Returns:
             Dictionary containing depending on the provided flags:
                 * loss: avg loss on data set, None if not calculated.
