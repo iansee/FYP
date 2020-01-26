@@ -14,10 +14,9 @@ import os
 
 
 import syft as sy
-from syft.messaging.message import ObjectRequestMessage
-from syft.messaging.message import SearchMessage
+from syft import messaging
 from syft.generic.tensor import AbstractTensor
-from syft.workers.base import BaseWorker
+from syft.workers import BaseWorker
 
 logger = logging.getLogger(__name__)
 
@@ -58,25 +57,28 @@ class WebsocketClientWorker(BaseWorker):
         return f"wss://{self.host}:{self.port}" if self.secure else f"ws://{self.host}:{self.port}"
 
     def connect(self):
-        args = {"max_size": None, "timeout": TIMEOUT_INTERVAL, "url": self.url}
+        
+        
+        args = {"max_size": None, "timeout": None, "url": self.url}
 
         if self.secure:
             args["sslopt"] = {"cert_reqs": ssl.CERT_NONE}
 
         self.ws = websocket.create_connection(**args)
-
+      
+        
     async def perf_ping(self):
+        #Tells the node to start monitoring itself
         self.start_monitor_node()
         file = bytearray(os.urandom(2000000))
         self.ws.send(file)
-        #Server will send 2MB to client
-
+        
         message=self.create_message_execute_command(command_name="send_central",command_owner="self")
-        #CALL send_central on the client node. send_central will send back 3MB
         serialized_message = sy.serde.serialize(message)
         self._recv_msg(serialized_message)
 
-        info = self.stop_monitor_node()
+        #get the node to stop monitoring itself
+        info = self.stop_monitor_node()        
         return info
 
     def data_setamount(self):
@@ -86,6 +88,13 @@ class WebsocketClientWorker(BaseWorker):
         info = sy.serde.deserialize(info)
 
         return info
+
+    async def data_setget(self):
+        message=self.create_message_execute_command(command_name="send_dataset",command_owner="self")
+        serialized_message = sy.serde.serialize(message)
+        dataset = sy.serde.deserialize(self._recv_msg(serialized_message))
+
+        return dataset
 
     def start_monitor_node(self):
         message = self.create_message_execute_command(command_name="start_monitoring",command_owner="self")
@@ -97,18 +106,15 @@ class WebsocketClientWorker(BaseWorker):
         serialized_message = sy.serde.serialize(message)
         info = self._recv_msg(serialized_message)
         info = sy.serde.deserialize(info)
-
+        
         return info
-
-
-
 
     def close(self):
         self.ws.close()
 
     def search(self, *query):
         # Prepare a message requesting the websocket server to search among its objects
-        message = SearchMessage(query)
+        message = messaging.SearchMessage(query)
         serialized_message = sy.serde.serialize(message)
         # Send the message and return the deserialized response.
         response = self._recv_msg(serialized_message)
@@ -166,20 +172,30 @@ class WebsocketClientWorker(BaseWorker):
 
     async def async_fit(self, dataset_key: str, return_ids: List[int] = None):
         """Asynchronous call to fit function on the remote location.
-
         Args:
             dataset_key: Identifier of the dataset which shall be used for the training.
             return_ids: List of return ids.
-
         Returns:
             See return value of the FederatedClient.fit() method.
         """
         if return_ids is None:
             return_ids = [sy.ID_PROVIDER.pop()]
+            
+
+        self._send_msg_and_deserialize("fit", return_ids=return_ids, dataset_key=dataset_key)
+
+        msg = messaging.ObjectRequestMessage(return_ids[0])
+        # Send the message and return the deserialized response.
+        serialized_message = sy.serde.serialize(msg)
+        response = self._recv_msg(serialized_message)
+        return sy.serde.deserialize(response)
+        
 
         # Close the existing websocket connection in order to open a asynchronous connection
         # This code is not tested with secure connections (wss protocol).
+        '''
         self.close()
+        
         async with websockets.connect(
             self.url, timeout=None, max_size=None, ping_timeout=None
         ) as websocket:
@@ -198,21 +214,21 @@ class WebsocketClientWorker(BaseWorker):
         # Reopen the standard connection
         self.connect()
 
+        
         # Send an object request message to retrieve the result tensor of the fit() method
-        msg = ObjectRequestMessage(return_ids[0])
+        msg = messaging.ObjectRequestMessage(return_ids[0])
         serialized_message = sy.serde.serialize(msg)
         response = self._recv_msg(serialized_message)
 
         # Return the deserialized response.
         return sy.serde.deserialize(response)
+        '''
 
     def fit(self, dataset_key: str, **kwargs):
         """Call the fit() method on the remote worker (WebsocketServerWorker instance).
-
         Note: The argument return_ids is provided as kwargs as otherwise there is a miss-match
         with the signature in VirtualWorker.fit() method. This is important to be able to switch
         between virtual and websocket workers.
-
         Args:
             dataset_key: Identifier of the dataset which shall be used for the training.
             **kwargs:
@@ -237,14 +253,12 @@ class WebsocketClientWorker(BaseWorker):
         return_raw_accuracy: bool = True,
     ):
         """Call the evaluate() method on the remote worker (WebsocketServerWorker instance).
-
         Args:
             dataset_key: Identifier of the local dataset that shall be used for training.
             return_histograms: If True, calculate the histograms of predicted classes.
             nr_bins: Used together with calculate_histograms. Provide the number of classes/bins.
             return_loss: If True, loss is calculated additionally.
             return_raw_accuracy: If True, return nr_correct_predictions and nr_predictions
-
         Returns:
             Dictionary containing depending on the provided flags:
                 * loss: avg loss on data set, None if not calculated.
@@ -265,12 +279,9 @@ class WebsocketClientWorker(BaseWorker):
 
     def __str__(self):
         """Returns the string representation of a Websocket worker.
-
         A to-string method for websocket workers that includes information from the websocket server
-
         Returns:
             The Type and ID of the worker
-
         """
         out = "<"
         out += str(type(self)).split("'")[1].split(".")[-1]
